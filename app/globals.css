@@ -93,19 +93,35 @@ button { cursor: pointer; border: none; background: none; }
 /* ── shell ─────────────────────────────────────────────────────────── */
 .shell {
   display: grid;
-  grid-template-rows: var(--header-h) 1fr var(--player-h);
+  /* minmax(0, 1fr) rather than 1fr: a plain 1fr track refuses to shrink below
+     its content, so a long station list pushed the player off the bottom of
+     the screen instead of scrolling underneath it. */
+  grid-template-rows: var(--header-h) minmax(0, 1fr) var(--player-h);
   height: 100vh;
   height: 100dvh;
+  /* Keep the player clear of the iPhone home indicator. */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .body-row {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: 232px minmax(0, 1fr);
   min-height: 0;
 }
 
 @media (max-width: 860px) {
-  .body-row { grid-template-columns: 1fr; }
+  /* The sidebar becomes a strip above the list, so the two stack as rows.
+     Same minmax(0, 1fr) rule — without it the list grows the track and the
+     page scrolls as a whole rather than the list scrolling inside it. */
+  .body-row {
+    /* minmax(0, …) on the column too. A plain 1fr track takes its minimum
+       from the content's min-content width, and the tab strip is nowrap — so
+       the column stretched to fit all three tabs and dragged the station list
+       off the side of the screen with it. The strip scrolls itself instead. */
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .sidebar { min-width: 0; }
 }
 
 /* ── header ────────────────────────────────────────────────────────── */
@@ -260,7 +276,12 @@ button { cursor: pointer; border: none; background: none; }
 }
 
 /* ── station grid ──────────────────────────────────────────────────── */
-.main { overflow-y: auto; padding: 22px 24px 30px; min-height: 0; }
+.main {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 22px 24px 30px;
+  min-height: 0;
+}
 
 .main-head {
   display: flex; align-items: baseline; gap: 12px;
@@ -460,6 +481,88 @@ button { cursor: pointer; border: none; background: none; }
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   Phones.
+
+   The desktop card is a tile — logo above, tags below, generous padding.
+   At 375px that gives about five stations on screen, which is no way to
+   browse sixty. On a phone the card becomes a row: logo, name, meta, and
+   the heart always visible because there is no hover to reveal it.
+   ────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root {
+    --header-h: 58px;
+    --player-h: 72px;
+  }
+
+  /* ── header ── */
+  .header { gap: 9px; padding: 0 11px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 9px; }
+  .search { height: 36px; padding: 0 11px; }
+  .search input { font-size: 15px; }   /* 16px or more stops iOS zooming on focus */
+  .header-right { gap: 6px; }
+
+  /* The language name is the first thing to go — the flag and chevron are
+     enough to show it is a language control. */
+  .lang-trigger { padding: 0 9px; height: 36px; }
+  .lang-trigger span:not(.chev):nth-of-type(2) { display: none; }
+  .lang-menu { min-width: 190px; }
+
+  .mic { width: 36px; height: 36px; }
+  .mic svg { width: 16px; height: 16px; }
+
+  /* ── tabs ── */
+  .sidebar { padding: 8px 10px; gap: 6px; }
+  .tab { padding: 7px 12px; font-size: 13.5px; border-radius: 99px; }
+  .tab svg { width: 15px; height: 15px; }
+
+  /* ── list ── */
+  .main { padding: 14px 12px 18px; }
+  .main-head { margin-bottom: 11px; gap: 8px; flex-wrap: wrap; }
+  .main-title { font-size: 17px; }
+  .main-sub { font-size: 12px; }
+
+  /* minmax(0, 1fr) again, and for the same reason: .card-name is nowrap, so
+     the card's min-content width is the full untruncated station name. A bare
+     1fr track would size itself to that and push the list off screen. This is
+     the third place the rule bites — any 1fr track containing nowrap text
+     needs it. */
+  .grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+
+  .card { padding: 10px 11px; border-radius: 13px; }
+  .card-top { margin-bottom: 0; gap: 11px; padding-right: 34px; }
+  .logo, .logo-fallback { width: 38px; height: 38px; border-radius: 9px; }
+  .card-name { font-size: 14.5px; }
+  .card-where { font-size: 11.5px; }
+
+  /* Tags are the least useful thing on a narrow row and cost a whole line
+     each. The genre is usually in the station's name anyway. */
+  .tags { display: none; }
+
+  /* No hover on a touch screen, so the heart has to be there already. */
+  .heart { opacity: 1; top: 50%; transform: translateY(-50%); right: 8px; }
+
+  .skeleton { height: 60px; border-radius: 13px; }
+
+  /* ── player ── */
+  .player { gap: 11px; padding: 0 12px; }
+  .play-btn { width: 42px; height: 42px; }
+  .now-name { font-size: 13.5px; }
+  .now-state { font-size: 11px; }
+
+  /* The DJ toggle keeps its icon and loses its label — "DJ on" next to a
+     microphone icon is saying the same thing twice. */
+  .chip { padding: 0 10px; height: 32px; font-size: 0; gap: 0; }
+  .chip svg { width: 15px; height: 15px; }
+
+  .empty { padding: 48px 16px; }
+}
+
+/* Very narrow phones — nothing competes with the search box. */
+@media (max-width: 380px) {
+  .brand { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
