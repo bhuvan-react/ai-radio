@@ -20,7 +20,19 @@ import { say, speechSupported, stopSpeaking } from "@/lib/dj";
 import { useLanguage } from "@/context/LanguageContext";
 
 const FAVORITES_KEY = "ai-radio-favorites";
+const DEAD_KEY = "ai-radio-dead-stations";
 const DUCKED_VOLUME = 0.12;
+
+/**
+ * A station is only hidden after it has failed twice.
+ *
+ * The directory marks a station broken only when its own checker fails, which
+ * misses the ones that are merely unreliable. But one failure is often the
+ * listener's own network rather than the station, and permanently hiding a
+ * good station because a train went into a tunnel would be worse than showing
+ * the occasional dud.
+ */
+const FAILURES_BEFORE_HIDING = 2;
 
 const PlayerContext = createContext(null);
 
@@ -28,21 +40,61 @@ export function PlayerProvider({ children }) {
   const { t, meta } = useLanguage();
 
   const audioRef = useRef(null);
+  // The audio element's listeners are attached once, so they need the current
+  // station id from a ref rather than from state they cannot see updating.
+  const currentId = useRef(null);
   const [station, setStation] = useState(null);
   const [status, setStatus] = useState("idle");   // idle | buffering | playing | error
   const [volume, setVolume] = useState(0.8);
   const [djEnabled, setDjEnabled] = useState(true);
   const [favorites, setFavorites] = useState([]);
+  // station id -> number of times it has failed to play
+  const [deadStations, setDeadStations] = useState({});
 
   // Same rule as the language: never read storage during render.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(FAVORITES_KEY);
       if (raw) setFavorites(JSON.parse(raw));
+      const dead = localStorage.getItem(DEAD_KEY);
+      if (dead) setDeadStations(JSON.parse(dead));
     } catch {
       /* corrupt or unavailable — start with none */
     }
   }, []);
+
+  /** Count a failure, and persist it. */
+  const recordFailure = useCallback((id) => {
+    setDeadStations((prev) => {
+      const next = { ...prev, [id]: (prev[id] ?? 0) + 1 };
+      try {
+        localStorage.setItem(DEAD_KEY, JSON.stringify(next));
+      } catch {
+        /* session only */
+      }
+      return next;
+    });
+  }, []);
+
+  /** A station that played is proven alive — clear any earlier strikes. */
+  const clearFailures = useCallback((id) => {
+    setDeadStations((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      try {
+        localStorage.setItem(DEAD_KEY, JSON.stringify(next));
+      } catch {
+        /* session only */
+      }
+      return next;
+    });
+  }, []);
+
+  const isDead = useCallback(
+    (id) => (deadStations[id] ?? 0) >= FAILURES_BEFORE_HIDING,
+    [deadStations]
+  );
 
   const persistFavorites = (next) => {
     setFavorites(next);
@@ -62,9 +114,18 @@ export function PlayerProvider({ children }) {
     // which this app does not do.
     audioRef.current = audio;
 
-    const onPlaying = () => setStatus("playing");
+    const onPlaying = () => {
+      setStatus("playing");
+      // Read the station from the ref rather than closing over state — this
+      // listener is attached once and would otherwise see the first station
+      // for ever.
+      if (currentId.current) clearFailures(currentId.current);
+    };
     const onWaiting = () => setStatus("buffering");
-    const onError = () => setStatus("error");
+    const onError = () => {
+      setStatus("error");
+      if (currentId.current) recordFailure(currentId.current);
+    };
 
     audio.addEventListener("playing", onPlaying);
     audio.addEventListener("waiting", onWaiting);
@@ -106,6 +167,7 @@ export function PlayerProvider({ children }) {
       if (!audio || !next?.url) return;
 
       const switching = station && station.id !== next.id;
+      currentId.current = next.id;
       setStation(next);
       setStatus("buffering");
 
@@ -134,13 +196,15 @@ export function PlayerProvider({ children }) {
         setStatus("error");
         // NotAllowedError means the browser blocked it, not that the station
         // is down. Saying "not responding" there sends people hunting for a
-        // problem with a station that is perfectly fine.
+        // problem with a station that is perfectly fine — and it must not
+        // count as a strike against the station either.
         if (err?.name !== "NotAllowedError") {
+          recordFailure(next.id);
           announce("failed", { station: next.name });
         }
       });
     },
-    [station, djEnabled, announce, volume]
+    [station, djEnabled, announce, volume, recordFailure]
   );
 
   const stop = useCallback(() => {
@@ -188,9 +252,10 @@ export function PlayerProvider({ children }) {
       djEnabled, setDjEnabled,
       play, stop, toggle, announce,
       favorites, isFavorite, toggleFavorite,
+      isDead,
     }),
     [station, status, volume, djEnabled, play, stop, toggle, announce,
-     favorites, isFavorite, toggleFavorite]
+     favorites, isFavorite, toggleFavorite, isDead]
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

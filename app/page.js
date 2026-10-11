@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
+import Collections from "@/components/Collections";
 import StationCard from "@/components/StationCard";
 import Player from "@/components/Player";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePlayer } from "@/context/PlayerContext";
+import { COLLECTIONS } from "@/lib/collections";
 
 export default function Home() {
   const { t } = useLanguage();
-  const { favorites, announce } = usePlayer();
+  const { favorites, announce, isDead } = usePlayer();
 
   const [tab, setTab] = useState("india");
+  const [collection, setCollection] = useState(null);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [stations, setStations] = useState([]);
@@ -37,13 +40,19 @@ export default function Home() {
   /** Fetch one page. `reset` starts the list again; otherwise it appends. */
   const loadPage = useCallback(
     async (offset, { reset = false, signal } = {}) => {
-      if (fetching.current) return;
+      // The guard exists to stop the scroll observer firing the same page
+      // twice. A reset must never be blocked by it — tapping two collection
+      // chips quickly would otherwise drop the second one silently and leave
+      // the first collection's stations under the second one's heading.
+      if (fetching.current && !reset) return;
       fetching.current = true;
       reset ? setLoading(true) : setLoadingMore(true);
       setError("");
 
       const params = new URLSearchParams({ scope: tab, offset: String(offset) });
       if (debounced) params.set("q", debounced);
+      // A collection replaces the scope entirely — it is its own query.
+      if (collection && !debounced) params.set("collection", collection);
 
       try {
         const res = await fetch(`/api/stations?${params}`, { signal });
@@ -82,7 +91,7 @@ export default function Home() {
     // `announce` and `t` change with language; rebuilding this on a language
     // switch would refetch the list for no reason.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tab, debounced]
+    [tab, debounced, collection]
   );
 
   // Start again whenever the tab or the search changes.
@@ -134,25 +143,39 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const title = {
-    india: t("tabIndia"),
-    international: t("tabInternational"),
-    favorites: t("tabFavorites"),
-  }[tab];
+  // Stations that failed to play twice are kept out of the list. The count is
+  // shown rather than hidden silently — a list quietly shrinking is confusing,
+  // and it explains why a station someone remembers has gone.
+  const visible = stations.filter((s) => !isDead(s.id));
+  const hidden = stations.length - visible.length;
+
+  const title =
+    collection && !debounced
+      ? COLLECTIONS[collection]?.label ?? ""
+      : {
+          india: t("tabIndia"),
+          international: t("tabInternational"),
+          favorites: t("tabFavorites"),
+        }[tab];
 
   return (
     <div className="shell">
       <Header query={query} onQuery={setQuery} onVoice={setQuery} />
 
       <div className="body-row">
-        <Sidebar tab={tab} onTab={setTab} />
+        <Sidebar tab={tab} onTab={(next) => { setTab(next); setCollection(null); }} />
 
         <main className="main">
+          {tab !== "favorites" && !debounced && (
+            <Collections active={collection} onSelect={setCollection} />
+          )}
+
           <div className="main-head">
             <h1 className="main-title">{debounced || title}</h1>
-            {!loading && !error && stations.length > 0 && (
+            {!loading && !error && visible.length > 0 && (
               <span className="main-sub">
-                {t("stationsCount", { count: stations.length })}
+                {t("stationsCount", { count: visible.length })}
+                {hidden > 0 ? ` · ${t("hiddenCount", { count: hidden })}` : ""}
               </span>
             )}
           </div>
@@ -179,7 +202,7 @@ export default function Home() {
             </div>
           )}
 
-          {!loading && !error && stations.length === 0 && (
+          {!loading && !error && visible.length === 0 && (
             <div className="empty">
               <div className="empty-title">
                 {tab === "favorites" ? t("noFavorites") : t("noResults")}
@@ -190,10 +213,10 @@ export default function Home() {
             </div>
           )}
 
-          {!loading && !error && stations.length > 0 && (
+          {!loading && !error && visible.length > 0 && (
             <>
               <div className="grid">
-                {stations.map((s) => (
+                {visible.map((s) => (
                   <StationCard key={s.id} station={s} />
                 ))}
               </div>

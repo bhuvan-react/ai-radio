@@ -382,6 +382,56 @@ button { cursor: pointer; border: none; background: none; }
 .empty-title { font-size: 16px; font-weight: 600; }
 .empty-hint  { font-size: 13px; color: var(--ink-3); }
 
+/* ── collections strip ─────────────────────────────────────────────── */
+.collections {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 11px;
+  margin-bottom: 7px;
+  scrollbar-width: none;
+}
+.collections::-webkit-scrollbar { display: none; }
+
+.coll-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding-left: 9px;
+  margin-left: 4px;
+  border-left: 1px solid var(--glass-line);
+}
+
+.coll-label {
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 700;
+  flex: none;
+  padding-right: 2px;
+}
+
+.coll {
+  flex: none;
+  white-space: nowrap;
+  padding: 5.5px 12px;
+  border-radius: 99px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.coll:hover { background: var(--glass-strong); color: var(--ink); }
+.coll[data-active="true"] {
+  background: linear-gradient(100deg, rgba(124, 58, 237, 0.34), rgba(225, 29, 72, 0.18));
+  border-color: rgba(167, 139, 250, 0.42);
+  color: var(--ink);
+}
+
 .loading-more {
   padding: 18px 0 6px;
   text-align: center;
@@ -537,6 +587,12 @@ button { cursor: pointer; border: none; background: none; }
 
   /* ── list ── */
   .main { padding: 14px 12px 18px; }
+  .collections { gap: 6px; padding-bottom: 9px; }
+  .coll { padding: 5px 11px; font-size: 12px; }
+  .coll-group { padding-left: 7px; margin-left: 2px; }
+  /* The group headings are the first thing to go on a phone — the chips read
+     clearly enough on their own and the labels cost scroll distance. */
+  .coll-label { display: none; }
   .main-head { margin-bottom: 11px; gap: 8px; flex-wrap: wrap; }
   .main-title { font-size: 17px; }
   .main-sub { font-size: 12px; }

@@ -12,6 +12,8 @@
  * Mirrors go down individually, so each request tries them in turn.
  */
 
+import { findCollection } from "@/lib/collections";
+
 const MIRRORS = [
   "https://de1.api.radio-browser.info",
   "https://nl1.api.radio-browser.info",
@@ -54,12 +56,59 @@ function toStation(s) {
   };
 }
 
+/** Merge several directory queries into one deduplicated list. */
+async function fetchCollection(collection, revalidate) {
+  const results = await Promise.all(
+    collection.queries.map(async (q) => {
+      const search = new URLSearchParams({
+        ...(q.params ?? {}),
+        limit: "120",
+        hidebroken: "true",
+        order: "clickcount",
+        reverse: "true",
+      });
+      try {
+        return await fetchFromAnyMirror(`/json/stations/${q.path}?${search}`, revalidate);
+      } catch {
+        // One query failing should not empty the whole collection — a
+        // Devotional list built from four searches is still useful on three.
+        return [];
+      }
+    })
+  );
+  return results.flat();
+}
+
 export async function GET(request) {
   const params = request.nextUrl.searchParams;
   const scope = params.get("scope") || "india";
   const query = (params.get("q") || "").trim();
+  const collectionId = params.get("collection");
   const limit = Math.min(Number(params.get("limit")) || 100, 200);
   const offset = Math.max(Number(params.get("offset")) || 0, 0);
+
+  // Collections merge several queries, so they cannot be paged by offset.
+  // They are bounded anyway — the largest is a couple of hundred stations.
+  if (collectionId) {
+    const collection = findCollection(collectionId);
+    if (!collection) {
+      return Response.json({ stations: [], error: "Unknown collection" }, { status: 404 });
+    }
+    try {
+      const raw = await fetchCollection(collection, 3600);
+      const seen = new Set();
+      const stations = raw
+        .map(toStation)
+        .filter((s) => s.url && s.url.startsWith("https://"))
+        .filter((s) => !seen.has(s.id) && seen.add(s.id));
+      return Response.json({ stations, offset: 0, hasMore: false });
+    } catch (err) {
+      return Response.json(
+        { stations: [], error: err?.message ?? "Station directory unavailable" },
+        { status: 502 }
+      );
+    }
+  }
 
   const common =
     `limit=${limit}&offset=${offset}&hidebroken=true&order=clickcount&reverse=true`;
