@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
 import StationCard from "@/components/StationCard";
@@ -17,9 +17,16 @@ export default function Home() {
   const [debounced, setDebounced] = useState("");
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
 
   const greeted = useRef(false);
+  const sentinel = useRef(null);
+  // Guards against a second page being requested while one is in flight, and
+  // against the observer firing again for an offset already fetched.
+  const fetching = useRef(false);
+  const nextOffset = useRef(0);
 
   // Typing shouldn't fire a request per keystroke at a volunteer-run directory.
   useEffect(() => {
@@ -27,45 +34,95 @@ export default function Home() {
     return () => clearTimeout(id);
   }, [query]);
 
+  /** Fetch one page. `reset` starts the list again; otherwise it appends. */
+  const loadPage = useCallback(
+    async (offset, { reset = false, signal } = {}) => {
+      if (fetching.current) return;
+      fetching.current = true;
+      reset ? setLoading(true) : setLoadingMore(true);
+      setError("");
+
+      const params = new URLSearchParams({ scope: tab, offset: String(offset) });
+      if (debounced) params.set("q", debounced);
+
+      try {
+        const res = await fetch(`/api/stations?${params}`, { signal });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const page = data.stations ?? [];
+        setHasMore(Boolean(data.hasMore));
+        nextOffset.current = offset + 100;   // matches the route's page size
+
+        setStations((prev) => {
+          if (reset) return page;
+          // The directory can repeat a station across pages; a duplicated key
+          // would break React's reconciliation, so merge rather than concat.
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...page.filter((s) => !seen.has(s.id))];
+        });
+
+        if (reset && debounced) {
+          announce(page.length ? "foundResults" : "foundNothing", {
+            count: page.length,
+          });
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          if (reset) setStations([]);
+          setError(err.message || t("loadFailed"));
+          setHasMore(false);
+        }
+      } finally {
+        fetching.current = false;
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    // `announce` and `t` change with language; rebuilding this on a language
+    // switch would refetch the list for no reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tab, debounced]
+  );
+
+  // Start again whenever the tab or the search changes.
   useEffect(() => {
     if (tab === "favorites") {
       setStations(favorites);
+      setHasMore(false);
       setLoading(false);
       setError("");
       return;
     }
-
     const controller = new AbortController();
-    setLoading(true);
-    setError("");
-
-    const params = new URLSearchParams({ scope: tab });
-    if (debounced) params.set("q", debounced);
-
-    fetch(`/api/stations?${params}`, { signal: controller.signal })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setStations(data.stations ?? []);
-        if (debounced) {
-          announce(
-            data.stations?.length ? "foundResults" : "foundNothing",
-            { count: data.stations?.length ?? 0 }
-          );
-        }
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        setStations([]);
-        setError(err.message || t("loadFailed"));
-      })
-      .finally(() => setLoading(false));
-
+    nextOffset.current = 0;
+    fetching.current = false;
+    loadPage(0, { reset: true, signal: controller.signal });
     return () => controller.abort();
-    // `announce` and `t` change with language; refetching on a language switch
-    // would be wasteful, so they are deliberately left out.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, debounced, favorites]);
+  }, [tab, debounced, favorites, loadPage]);
+
+  /**
+   * Load the next page when the bottom of the list comes into view.
+   *
+   * rootMargin pulls the trigger 600px early so the next page is usually
+   * already there by the time the reader reaches the end — the list just keeps
+   * going rather than stopping to load.
+   */
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !hasMore || loading || tab === "favorites") return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !fetching.current) {
+          loadPage(nextOffset.current);
+        }
+      },
+      { root: node.closest(".main"), rootMargin: "600px" }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [hasMore, loading, tab, loadPage]);
 
   // Greet once, after the language has settled, so the welcome is not spoken
   // in English and then corrected.
@@ -134,11 +191,21 @@ export default function Home() {
           )}
 
           {!loading && !error && stations.length > 0 && (
-            <div className="grid">
-              {stations.map((s) => (
-                <StationCard key={s.id} station={s} />
-              ))}
-            </div>
+            <>
+              <div className="grid">
+                {stations.map((s) => (
+                  <StationCard key={s.id} station={s} />
+                ))}
+              </div>
+
+              {/* Watched by the observer above; sits below the list so it comes
+                  into view as the reader nears the end. */}
+              <div ref={sentinel} style={{ height: 1 }} aria-hidden="true" />
+
+              {loadingMore && (
+                <div className="loading-more">{t("loading")}</div>
+              )}
+            </>
           )}
         </main>
       </div>

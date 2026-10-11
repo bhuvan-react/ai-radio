@@ -58,9 +58,11 @@ export async function GET(request) {
   const params = request.nextUrl.searchParams;
   const scope = params.get("scope") || "india";
   const query = (params.get("q") || "").trim();
-  const limit = Math.min(Number(params.get("limit")) || 60, 120);
+  const limit = Math.min(Number(params.get("limit")) || 100, 200);
+  const offset = Math.max(Number(params.get("offset")) || 0, 0);
 
-  const common = `limit=${limit}&hidebroken=true&order=clickcount&reverse=true`;
+  const common =
+    `limit=${limit}&offset=${offset}&hidebroken=true&order=clickcount&reverse=true`;
 
   let path;
   let revalidate;
@@ -73,9 +75,11 @@ export async function GET(request) {
     path = `/json/stations/bycountrycodeexact/IN?${common}`;
     revalidate = 3600;
   } else {
-    // "International" means everywhere except India — the India tab already
-    // covers that, and leaving it in would make the two tabs look identical.
-    path = `/json/stations/topclick/200?hidebroken=true`;
+    // "International" is everywhere except India — the India tab covers that,
+    // and leaving it in would make the two tabs look nearly identical.
+    // The generic search endpoint is used rather than topclick because it
+    // takes an offset, and topclick returns one fixed block.
+    path = `/json/stations/search?${common}`;
     revalidate = 3600;
   }
 
@@ -87,12 +91,14 @@ export async function GET(request) {
     // play once deployed, however healthy the directory thinks they are.
     // Roughly one in five, and offering a station that always fails is worse
     // than offering four fewer that work.
-    let stations = (Array.isArray(raw) ? raw : [])
+    const rawList = Array.isArray(raw) ? raw : [];
+
+    let stations = rawList
       .map(toStation)
       .filter((s) => s.url && s.url.startsWith("https://"));
 
     if (!query && scope !== "india") {
-      stations = stations.filter((s) => s.countryCode !== "IN").slice(0, limit);
+      stations = stations.filter((s) => s.countryCode !== "IN");
     }
 
     // The directory happily returns the same station twice from different
@@ -101,7 +107,14 @@ export async function GET(request) {
     const seen = new Set();
     stations = stations.filter((s) => !seen.has(s.id) && seen.add(s.id));
 
-    return Response.json({ stations });
+    // Whether more pages exist is judged on what the directory returned, not
+    // on what survived filtering. A page where most stations were HTTP-only
+    // still means there is another page behind it.
+    return Response.json({
+      stations,
+      offset,
+      hasMore: rawList.length === limit,
+    });
   } catch (err) {
     return Response.json(
       { stations: [], error: err?.message ?? "Station directory unavailable" },
