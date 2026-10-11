@@ -56,7 +56,10 @@ export function PlayerProvider({ children }) {
   useEffect(() => {
     const audio = new Audio();
     audio.preload = "none";
-    audio.crossOrigin = "anonymous";
+    // Deliberately NOT crossOrigin="anonymous". That makes the browser demand
+    // CORS headers, which most radio servers do not send, and the stream fails
+    // to load. It is only needed to read audio data with the Web Audio API,
+    // which this app does not do.
     audioRef.current = audio;
 
     const onPlaying = () => setStatus("playing");
@@ -98,7 +101,7 @@ export function PlayerProvider({ children }) {
   );
 
   const play = useCallback(
-    async (next) => {
+    (next) => {
       const audio = audioRef.current;
       if (!audio || !next?.url) return;
 
@@ -106,19 +109,36 @@ export function PlayerProvider({ children }) {
       setStation(next);
       setStatus("buffering");
 
-      // The DJ speaks before the stream starts, not over the opening bars.
+      /**
+       * Start the stream in the same task as the tap that asked for it.
+       *
+       * Mobile browsers — iOS especially — only allow audio to begin from a
+       * user gesture, and the permission does not survive an await. An earlier
+       * version let the DJ speak first and then called play(); on a phone that
+       * lost the gesture and every station came back as "not responding".
+       *
+       * So: play first, then talk over it. Which is also what a real radio
+       * does — the host speaks over the opening bars rather than making you
+       * sit in silence waiting for them to finish.
+       */
+      audio.src = next.url;
+      audio.volume = volume;
+      const started = audio.play();
+
       if (djEnabled && speechSupported()) {
-        await announce(switching ? "switching" : "intro", { station: next.name });
+        // Not awaited — it ducks and restores on its own.
+        announce(switching ? "switching" : "intro", { station: next.name });
       }
 
-      try {
-        audio.src = next.url;
-        audio.volume = volume;
-        await audio.play();
-      } catch {
+      Promise.resolve(started).catch((err) => {
         setStatus("error");
-        announce("failed", { station: next.name });
-      }
+        // NotAllowedError means the browser blocked it, not that the station
+        // is down. Saying "not responding" there sends people hunting for a
+        // problem with a station that is perfectly fine.
+        if (err?.name !== "NotAllowedError") {
+          announce("failed", { station: next.name });
+        }
+      });
     },
     [station, djEnabled, announce, volume]
   );

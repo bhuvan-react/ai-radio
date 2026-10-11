@@ -81,7 +81,15 @@ export async function GET(request) {
 
   try {
     const raw = await fetchFromAnyMirror(path, revalidate);
-    let stations = (Array.isArray(raw) ? raw : []).map(toStation).filter((s) => s.url);
+
+    // Plain-HTTP streams are dropped. The site is served over HTTPS, and a
+    // browser blocks mixed content outright — so those stations can never
+    // play once deployed, however healthy the directory thinks they are.
+    // Roughly one in five, and offering a station that always fails is worse
+    // than offering four fewer that work.
+    let stations = (Array.isArray(raw) ? raw : [])
+      .map(toStation)
+      .filter((s) => s.url && s.url.startsWith("https://"));
 
     if (!query && scope !== "india") {
       stations = stations.filter((s) => s.countryCode !== "IN").slice(0, limit);
