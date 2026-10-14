@@ -14,6 +14,15 @@
 [build]
   command = "npm run build"
 
+# Declared rather than left to detection.
+#
+# Netlify normally spots Next.js from package.json and applies this itself, but
+# the site reported "Runtime: Not set" and shipped no functions — every route,
+# API ones included, returned 404 because the build output was served as plain
+# static files. Naming the plugin removes the guesswork.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
 [build.environment]
   # The route handler uses AbortSignal.timeout, which needs Node 18 or newer.
   # Pinning it means a change to Netlify's default cannot break the build.
