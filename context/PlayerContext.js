@@ -250,6 +250,7 @@ export function PlayerProvider({ children }) {
     }
   }, [station, status]);
 
+
   const isFavorite = useCallback(
     (id) => favorites.some((f) => f.id === id),
     [favorites]
@@ -274,7 +275,8 @@ export function PlayerProvider({ children }) {
       isDead,
     }),
     [station, status, volume, play, stop, toggle,
-     favorites, isFavorite, toggleFavorite, isDead]
+     favorites, isFavorite, toggleFavorite,
+     isDead]
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

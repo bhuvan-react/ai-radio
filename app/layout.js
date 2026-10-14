@@ -2,6 +2,7 @@ import { Oswald, Jost } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { PlayerProvider } from "@/context/PlayerContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 /**
  * Oswald is the dial: condensed grotesque, which is what was actually printed
@@ -25,9 +26,22 @@ const jost = Jost({
   display: "swap",
 });
 
+/**
+ * Icons are declared here and served from public/, not placed in app/ as
+ * icon.svg.
+ *
+ * Next's file-based metadata convention writes the absolute file path into a
+ * single-quoted JavaScript string, and this project lives under a folder whose
+ * name contains an apostrophe. That closes the string early and the build
+ * fails with a parse error wearing a misleading "exceeds 8MB" message.
+ */
 export const metadata = {
   title: "SV Radio",
   description: "Live radio stations from India and the world",
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
 };
 
 export const viewport = {
@@ -47,7 +61,9 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${oswald.variable} ${jost.variable}`}>
       <body>
         <LanguageProvider>
-          <PlayerProvider>{children}</PlayerProvider>
+          <AuthProvider>
+            <PlayerProvider>{children}</PlayerProvider>
+          </AuthProvider>
         </LanguageProvider>
       </body>
     </html>

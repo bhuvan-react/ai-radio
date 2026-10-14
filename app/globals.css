@@ -68,6 +68,95 @@ button, input, select { font: inherit; color: inherit; }
   }
 }
 
+/* ── Sign-in gate ──────────────────────────────────────────────────────── */
+
+.gate {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  padding-top: calc(24px + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  background-color: var(--walnut);
+  background-image:
+    repeating-linear-gradient(94deg,
+      rgba(0, 0, 0, 0.16) 0 1px,
+      rgba(255, 255, 255, 0.035) 1px 3px,
+      transparent 3px 9px),
+    linear-gradient(160deg, #5A3B27 0%, #442C1E 45%, #573924 100%);
+}
+
+.gate-panel {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  padding: 30px 26px 32px;
+  border-radius: 14px;
+  border: 2px solid #32200F;
+  background: linear-gradient(176deg, var(--cream) 0%, var(--cream-2) 52%, #D8C398 100%);
+  box-shadow:
+    inset 0 2px 7px rgba(80, 55, 20, 0.34),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5),
+    0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+.gate-title {
+  margin: 4px 0 0;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.gate-note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  max-width: 34ch;
+}
+
+/* Google renders its own button into this slot and sizes it itself. */
+.gate-button { margin-top: 6px; min-height: 44px; }
+
+.gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.gate-btn {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1.5px solid #B29A64;
+  background: rgba(255, 255, 255, 0.4);
+  color: #4A3A18;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.gate-btn:hover { background: rgba(255, 255, 255, 0.72); }
+
+.gate-btn-quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--ink-3);
+}
+
+.gate-btn-quiet:hover { background: rgba(120, 90, 40, 0.1); }
+
 /* ── Shell ─────────────────────────────────────────────────────────────── */
 
 .shell {

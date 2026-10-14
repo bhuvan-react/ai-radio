@@ -6,11 +6,14 @@ import Tabs from "@/components/Tabs";
 import Collections from "@/components/Collections";
 import StationCard from "@/components/StationCard";
 import Cabinet from "@/components/Cabinet";
+import SignInGate from "@/components/SignInGate";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePlayer } from "@/context/PlayerContext";
+import { useAuth } from "@/context/AuthContext";
 import { COLLECTIONS } from "@/lib/collections";
 
 export default function Home() {
+  const { status: access } = useAuth();
   const { t } = useLanguage();
   const { favorites, isDead, station, play } = usePlayer();
 
@@ -90,6 +93,9 @@ export default function Home() {
 
   // Start again whenever the tab, the search or the collection changes.
   useEffect(() => {
+    // No point asking a volunteer-run directory for stations nobody is allowed
+    // to play yet.
+    if (access !== "approved") return;
     if (tab === "favorites") {
       setStations(favorites);
       setHasMore(false);
@@ -102,7 +108,7 @@ export default function Home() {
     fetching.current = false;
     loadPage(0, { reset: true, signal: controller.signal });
     return () => controller.abort();
-  }, [tab, debounced, favorites, loadPage]);
+  }, [tab, debounced, favorites, loadPage, access]);
 
   /**
    * Load the next page when the bottom of the list comes into view.
@@ -155,6 +161,10 @@ export default function Home() {
           international: t("tabInternational"),
           favorites: t("tabFavorites"),
         }[tab];
+
+  // Placed after every hook above, never before: an early return that skips
+  // hooks would change their order between renders, which React forbids.
+  if (access !== "approved") return <SignInGate />;
 
   return (
     <div className="shell">
