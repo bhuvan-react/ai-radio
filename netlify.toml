@@ -5,9 +5,14 @@
 # serverless functions. Nothing here overrides that; it only pins the things
 # that are worth not leaving to a default.
 
+# No `publish` here, deliberately.
+#
+# Netlify's Next.js Runtime v5 decides its own output directory and wires the
+# server routes up as functions. Setting `publish = ".next"` is the v4
+# convention, and on v5 it makes Netlify serve the raw build folder as static
+# files instead — which contains no index.html, so every route returns 404.
 [build]
   command = "npm run build"
-  publish = ".next"
 
 [build.environment]
   # The route handler uses AbortSignal.timeout, which needs Node 18 or newer.
