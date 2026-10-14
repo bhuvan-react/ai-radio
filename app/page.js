@@ -1,18 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Header from "@/components/Header";
-import Sidebar from "@/components/Sidebar";
+import Tabs from "@/components/Tabs";
 import Collections from "@/components/Collections";
 import StationCard from "@/components/StationCard";
-import Player from "@/components/Player";
+import Cabinet from "@/components/Cabinet";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePlayer } from "@/context/PlayerContext";
 import { COLLECTIONS } from "@/lib/collections";
 
 export default function Home() {
   const { t } = useLanguage();
-  const { favorites, announce, isDead } = usePlayer();
+  const { favorites, isDead, station, play } = usePlayer();
 
   const [tab, setTab] = useState("india");
   const [collection, setCollection] = useState(null);
@@ -24,7 +24,6 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
 
-  const greeted = useRef(false);
   const sentinel = useRef(null);
   // Guards against a second page being requested while one is in flight, and
   // against the observer firing again for an offset already fetched.
@@ -51,7 +50,8 @@ export default function Home() {
 
       const params = new URLSearchParams({ scope: tab, offset: String(offset) });
       if (debounced) params.set("q", debounced);
-      // A collection replaces the scope entirely — it is its own query.
+      // A collection replaces the scope entirely — it is its own query. The
+      // scope still travels with it so the route knows which tab asked.
       if (collection && !debounced) params.set("collection", collection);
 
       try {
@@ -70,12 +70,6 @@ export default function Home() {
           const seen = new Set(prev.map((s) => s.id));
           return [...prev, ...page.filter((s) => !seen.has(s.id))];
         });
-
-        if (reset && debounced) {
-          announce(page.length ? "foundResults" : "foundNothing", {
-            count: page.length,
-          });
-        }
       } catch (err) {
         if (err.name !== "AbortError") {
           if (reset) setStations([]);
@@ -88,13 +82,13 @@ export default function Home() {
         setLoadingMore(false);
       }
     },
-    // `announce` and `t` change with language; rebuilding this on a language
-    // switch would refetch the list for no reason.
+    // `t` changes with language; rebuilding this on a language switch would
+    // refetch the list for no reason.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tab, debounced, collection]
   );
 
-  // Start again whenever the tab or the search changes.
+  // Start again whenever the tab, the search or the collection changes.
   useEffect(() => {
     if (tab === "favorites") {
       setStations(favorites);
@@ -133,21 +127,25 @@ export default function Home() {
     return () => io.disconnect();
   }, [hasMore, loading, tab, loadPage]);
 
-  // Greet once, after the language has settled, so the welcome is not spoken
-  // in English and then corrected.
-  useEffect(() => {
-    if (greeted.current) return;
-    greeted.current = true;
-    const id = setTimeout(() => announce("welcome"), 900);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Stations that failed to play twice are kept out of the list. The count is
   // shown rather than hidden silently — a list quietly shrinking is confusing,
   // and it explains why a station someone remembers has gone.
-  const visible = stations.filter((s) => !isDead(s.id));
+  const visible = useMemo(
+    () => stations.filter((s) => !isDead(s.id)),
+    [stations, isDead]
+  );
   const hidden = stations.length - visible.length;
+
+  // The cabinet's skip buttons walk the list on screen, so they follow
+  // whatever the listener is currently browsing rather than some separate
+  // queue they cannot see.
+  const index = station ? visible.findIndex((s) => s.id === station.id) : -1;
+  const goPrev = useCallback(() => {
+    if (index > 0) play(visible[index - 1]);
+  }, [index, visible, play]);
+  const goNext = useCallback(() => {
+    if (index !== -1 && index < visible.length - 1) play(visible[index + 1]);
+  }, [index, visible, play]);
 
   const title =
     collection && !debounced
@@ -160,21 +158,34 @@ export default function Home() {
 
   return (
     <div className="shell">
-      <Header query={query} onQuery={setQuery} onVoice={setQuery} />
+      <Cabinet
+        onPrev={index > 0 ? goPrev : undefined}
+        onNext={index !== -1 && index < visible.length - 1 ? goNext : undefined}
+      />
 
-      <div className="body-row">
-        <Sidebar tab={tab} onTab={(next) => { setTab(next); setCollection(null); }} />
+      <div className="browse">
+        <Header query={query} onQuery={setQuery} onVoice={setQuery} />
+
+        <Tabs
+          tab={tab}
+          onTab={(next) => { setTab(next); setCollection(null); }}
+        />
+
+        {tab !== "favorites" && !debounced && (
+          <Collections
+            scope={tab}
+            active={collection}
+            onSelect={setCollection}
+          />
+        )}
 
         <main className="main">
-          {tab !== "favorites" && !debounced && (
-            <Collections active={collection} onSelect={setCollection} />
-          )}
-
           <div className="main-head">
             <h1 className="main-title">{debounced || title}</h1>
             {!loading && !error && visible.length > 0 && (
               <span className="main-sub">
-                {t("stationsCount", { count: visible.length })}
+                {t(visible.length === 1 ? "stationsCountOne" : "stationsCount",
+                   { count: visible.length })}
                 {hidden > 0 ? ` · ${t("hiddenCount", { count: hidden })}` : ""}
               </span>
             )}
@@ -193,9 +204,10 @@ export default function Home() {
               <div className="empty-title">{t("loadFailed")}</div>
               <div className="empty-hint">{error}</div>
               <button
-                className="chip"
-                style={{ marginTop: 10 }}
-                onClick={() => setDebounced((d) => `${d}`)}
+                type="button"
+                className="coll"
+                style={{ marginTop: 12 }}
+                onClick={() => loadPage(0, { reset: true })}
               >
                 {t("retry")}
               </button>
@@ -232,8 +244,6 @@ export default function Home() {
           )}
         </main>
       </div>
-
-      <Player />
     </div>
   );
 }

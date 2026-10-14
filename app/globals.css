@@ -1,33 +1,36 @@
-/* ──────────────────────────────────────────────────────────────────────
-   AI Radio — glassmorphic dark interface.
-
-   Colours live as tokens so the whole thing can be retuned from one block.
-   The warmth is deliberate: a radio is a living-room object, and a pure cold
-   blue-grey makes it feel like a dashboard.
-   ────────────────────────────────────────────────────────────────────── */
+/**
+ * SV Radio — walnut cabinet.
+ *
+ * The wood and the speaker grille are drawn with layered CSS gradients rather
+ * than image files: nothing extra to download, sharp at any pixel density, and
+ * it costs nothing on first paint.
+ *
+ * This design commits to one world — a lamp-lit wooden set — so there is no
+ * light theme. Every colour is stated explicitly and the body paints its own
+ * ground, which is what keeps it honest on any host background.
+ */
 
 :root {
-  --bg-0:        #0b0a14;
-  --bg-1:        #141026;
-  --glow-violet: #7c3aed;
-  --glow-rose:   #e11d48;
-  --glow-amber:  #f59e0b;
+  --walnut:      #4A3122;
+  --walnut-deep: #2B1B13;
+  --shadow:      rgba(0, 0, 0, 0.42);
 
-  --glass:        rgba(255, 255, 255, 0.055);
-  --glass-strong: rgba(255, 255, 255, 0.085);
-  --glass-line:   rgba(255, 255, 255, 0.11);
+  --cream:    #F2E7CB;
+  --cream-2:  #E3D3AC;
+  --ink:      #2C1E0C;
+  --ink-2:    #6E5833;
+  --ink-3:    #8A703C;
 
-  --ink:   #f4f2fb;
-  --ink-2: #b9b4d0;
-  --ink-3: #797394;
+  --brass:    #C9A74E;
+  --brass-lo: #7E6228;
+  --amber:    #E8863A;
+  --amber-hi: #FF9A3C;
 
-  --accent:      #a78bfa;
-  --accent-deep: #7c3aed;
+  --on-wood:   #EFDFBB;
+  --on-wood-2: #BFA57C;
+  --hairline:  rgba(233, 207, 154, 0.18);
 
-  --radius:    16px;
-  --radius-sm: 11px;
-  --header-h:  72px;
-  --player-h:  84px;
+  --radius: 10px;
 }
 
 * { box-sizing: border-box; }
@@ -35,616 +38,1062 @@
 html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
-  background: var(--bg-0);
-  color: var(--ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-               "Noto Sans", "Noto Sans Devanagari", "Noto Sans Telugu",
-               "Noto Sans Tamil", sans-serif;
+  background: var(--walnut-deep);
+  color: var(--on-wood);
+  font-family: var(--font-jost), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
-}
-
-/* Three soft lights behind everything. Fixed, so they don't move when the
-   station list scrolls — the glass should feel like it sits in front of a
-   room, not in front of a scrolling texture. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(60rem 42rem at 12% -8%,  rgba(124, 58, 237, 0.32), transparent 62%),
-    radial-gradient(48rem 38rem at 92% 6%,   rgba(225, 29, 72, 0.20),  transparent 60%),
-    radial-gradient(52rem 40rem at 58% 112%, rgba(245, 158, 11, 0.14), transparent 58%),
-    linear-gradient(160deg, var(--bg-1), var(--bg-0) 70%);
+  /* An inertial scroll inside .main should not drag the page behind it. */
+  overscroll-behavior-y: none;
 }
 
 button, input, select { font: inherit; color: inherit; }
-button { cursor: pointer; border: none; background: none; }
 
-::-webkit-scrollbar { width: 9px; height: 9px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 99px;
-}
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
-
-:focus-visible {
-  outline: 2px solid var(--accent);
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--amber-hi);
   outline-offset: 2px;
-  border-radius: 6px;
-}
-
-/* ── the glass surface ─────────────────────────────────────────────── */
-.glass {
-  background: var(--glass);
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  border: 1px solid var(--glass-line);
-}
-
-/* ── shell ─────────────────────────────────────────────────────────── */
-.shell {
-  display: grid;
-  /* minmax(0, 1fr) rather than 1fr: a plain 1fr track refuses to shrink below
-     its content, so a long station list pushed the player off the bottom of
-     the screen instead of scrolling underneath it. */
-  grid-template-rows: var(--header-h) minmax(0, 1fr) var(--player-h);
-  height: 100vh;
-  height: 100dvh;
-  /* Keep the player clear of the iPhone home indicator. */
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.body-row {
-  display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
-  min-height: 0;
-}
-
-@media (max-width: 860px) {
-  /* The sidebar becomes a strip above the list, so the two stack as rows.
-     Same minmax(0, 1fr) rule — without it the list grows the track and the
-     page scrolls as a whole rather than the list scrolling inside it. */
-  .body-row {
-    /* minmax(0, …) on the column too. A plain 1fr track takes its minimum
-       from the content's min-content width, and the tab strip is nowrap — so
-       the column stretched to fit all three tabs and dragged the station list
-       off the side of the screen with it. The strip scrolls itself instead. */
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .sidebar { min-width: 0; }
-}
-
-/* ── header ────────────────────────────────────────────────────────── */
-.header {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 0 20px;
-  /* Flex items refuse to shrink below their min-content width unless told
-     otherwise, and a text input's min-content is its default 20-character
-     size — which Safari computes wider than Chromium does. Without these the
-     header pushes past a narrow screen and everything below is clipped with
-     it. */
-  min-width: 0;
-  overflow: hidden;
-  border-bottom: 1px solid var(--glass-line);
-  background: rgba(11, 10, 20, 0.52);
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-}
-
-.brand { display: flex; align-items: center; gap: 11px; flex: none; }
-
-.brand-mark {
-  width: 36px; height: 36px;
-  border-radius: 11px;
-  display: grid; place-items: center;
-  background: linear-gradient(140deg, var(--glow-violet), var(--glow-rose));
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.42);
-}
-
-.brand-name { font-weight: 700; letter-spacing: -0.015em; font-size: 15.5px; }
-.brand-tag  { font-size: 11px; color: var(--ink-3); margin-top: -2px; }
-
-@media (max-width: 720px) { .brand-text { display: none; } }
-
-/* ── search ────────────────────────────────────────────────────────── */
-.search {
-  flex: 1 1 0;
-  min-width: 0;          /* must shrink; see .header */
-  max-width: 460px;
-  display: flex; align-items: center; gap: 9px;
-  padding: 0 14px;
-  height: 40px;
-  border-radius: 99px;
-  background: var(--glass);
-  border: 1px solid var(--glass-line);
-  transition: border-color 0.18s, background 0.18s;
-}
-.search:focus-within {
-  border-color: rgba(167, 139, 250, 0.55);
-  background: var(--glass-strong);
-}
-.search input {
-  flex: 1; min-width: 0;
-  background: none; border: none; outline: none;
-  color: var(--ink); font-size: 14px;
-}
-.search input::placeholder { color: var(--ink-3); }
-
-.header-right { margin-left: auto; display: flex; align-items: center; gap: 9px; }
-
-/* ── language switcher ─────────────────────────────────────────────── */
-.lang { position: relative; }
-
-.lang-trigger {
-  display: flex; align-items: center; gap: 8px;
-  height: 40px; padding: 0 13px;
-  border-radius: 99px;
-  background: var(--glass);
-  border: 1px solid var(--glass-line);
-  color: var(--ink-2);
-  font-size: 13.5px;
-  transition: background 0.18s, color 0.18s;
-}
-.lang-trigger:hover { background: var(--glass-strong); color: var(--ink); }
-.lang-trigger .chev { transition: transform 0.2s; }
-.lang-trigger[aria-expanded="true"] .chev { transform: rotate(180deg); }
-
-.lang-menu {
-  position: absolute;
-  top: calc(100% + 9px); right: 0;
-  min-width: 212px;
-  padding: 6px;
-  border-radius: var(--radius);
-  background: rgba(20, 16, 38, 0.86);
-  backdrop-filter: blur(26px) saturate(160%);
-  -webkit-backdrop-filter: blur(26px) saturate(160%);
-  border: 1px solid var(--glass-line);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
-  z-index: 60;
-  animation: drop 0.16s ease-out;
-}
-
-@keyframes drop {
-  from { opacity: 0; transform: translateY(-6px) scale(0.985); }
-  to   { opacity: 1; transform: none; }
-}
-
-.lang-item {
-  width: 100%;
-  display: flex; align-items: center; gap: 11px;
-  padding: 9px 11px;
-  border-radius: var(--radius-sm);
-  color: var(--ink-2);
-  text-align: left;
-  transition: background 0.14s, color 0.14s;
-}
-.lang-item:hover { background: var(--glass-strong); color: var(--ink); }
-.lang-item[data-active="true"] { color: var(--accent); background: rgba(124, 58, 237, 0.14); }
-.lang-item .native { font-weight: 600; }
-.lang-item .latin  { font-size: 11.5px; color: var(--ink-3); margin-left: auto; }
-
-/* ── sidebar ───────────────────────────────────────────────────────── */
-.sidebar {
-  padding: 18px 13px;
-  border-right: 1px solid var(--glass-line);
-  display: flex; flex-direction: column; gap: 5px;
-  overflow-y: auto;
-}
-
-.side-label {
-  font-size: 10.5px; letter-spacing: 0.13em; text-transform: uppercase;
-  color: var(--ink-3); font-weight: 700;
-  padding: 0 11px; margin-bottom: 9px;
-}
-
-.tab {
-  display: flex; align-items: center; gap: 11px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  color: var(--ink-2);
-  font-size: 14px; font-weight: 500;
-  transition: background 0.15s, color 0.15s;
-  text-align: left; width: 100%;
-}
-.tab:hover { background: var(--glass); color: var(--ink); }
-.tab[data-active="true"] {
-  background: linear-gradient(100deg, rgba(124, 58, 237, 0.28), rgba(225, 29, 72, 0.14));
-  border: 1px solid rgba(167, 139, 250, 0.3);
-  color: var(--ink);
-}
-.tab .count {
-  margin-left: auto;
-  font-size: 11px; color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 860px) {
-  .sidebar {
-    flex-direction: row;
-    border-right: none;
-    border-bottom: 1px solid var(--glass-line);
-    padding: 11px;
-    overflow-x: auto;
-  }
-  .side-label { display: none; }
-  .tab { white-space: nowrap; width: auto; }
-  .tab .count { display: none; }
-}
-
-/* ── station grid ──────────────────────────────────────────────────── */
-.main {
-  overflow-y: auto;
-  overflow-x: hidden;    /* nothing here should ever scroll sideways */
-  -webkit-overflow-scrolling: touch;
-  padding: 22px 24px 30px;
-  min-height: 0;
-  min-width: 0;
-}
-
-.main-head {
-  display: flex; align-items: baseline; gap: 12px;
-  margin-bottom: 18px;
-}
-.main-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-.main-sub   { font-size: 13px; color: var(--ink-3); }
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
-  gap: 13px;
-}
-
-.card {
-  position: relative;
-  padding: 14px;
-  border-radius: var(--radius);
-  background: var(--glass);
-  border: 1px solid var(--glass-line);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  text-align: left;
-  width: 100%;
-  transition: transform 0.16s, background 0.16s, border-color 0.16s;
-}
-.card:hover {
-  transform: translateY(-2px);
-  background: var(--glass-strong);
-  border-color: rgba(167, 139, 250, 0.32);
-}
-.card[data-playing="true"] {
-  border-color: rgba(167, 139, 250, 0.6);
-  background: linear-gradient(140deg, rgba(124, 58, 237, 0.2), rgba(225, 29, 72, 0.08));
-}
-
-.card-top { display: flex; align-items: center; gap: 11px; margin-bottom: 11px; }
-
-.logo {
-  width: 42px; height: 42px; flex: none;
-  border-radius: 10px;
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.06);
-}
-.logo-fallback {
-  width: 42px; height: 42px; flex: none;
-  border-radius: 10px;
-  display: grid; place-items: center;
-  font-weight: 700; font-size: 15px;
-  background: linear-gradient(140deg, rgba(124, 58, 237, 0.5), rgba(225, 29, 72, 0.4));
-}
-
-.card-name {
-  font-weight: 600; font-size: 14px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.card-where { font-size: 11.5px; color: var(--ink-3); }
-
-.tags { display: flex; gap: 5px; flex-wrap: wrap; }
-.tag {
-  font-size: 10.5px;
-  padding: 2.5px 8px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--ink-3);
-}
-
-.heart {
-  position: absolute; top: 11px; right: 11px;
-  width: 28px; height: 28px;
-  display: grid; place-items: center;
-  border-radius: 9px;
-  color: var(--ink-3);
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
-}
-.card:hover .heart, .heart[data-on="true"] { opacity: 1; }
-.heart:hover { background: rgba(255, 255, 255, 0.1); color: var(--ink); }
-.heart[data-on="true"] { color: var(--glow-rose); }
-
-/* ── empty and loading ─────────────────────────────────────────────── */
-.empty {
-  display: grid; place-items: center;
-  padding: 70px 20px;
-  text-align: center;
-  gap: 7px;
-}
-.empty-title { font-size: 16px; font-weight: 600; }
-.empty-hint  { font-size: 13px; color: var(--ink-3); }
-
-/* ── collections strip ─────────────────────────────────────────────── */
-.collections {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  overflow-x: auto;
-  padding-bottom: 11px;
-  margin-bottom: 7px;
-  scrollbar-width: none;
-}
-.collections::-webkit-scrollbar { display: none; }
-
-.coll-group {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex: none;
-  padding-left: 9px;
-  margin-left: 4px;
-  border-left: 1px solid var(--glass-line);
-}
-
-.coll-label {
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  font-weight: 700;
-  flex: none;
-  padding-right: 2px;
-}
-
-.coll {
-  flex: none;
-  white-space: nowrap;
-  padding: 5.5px 12px;
-  border-radius: 99px;
-  font-size: 12.5px;
-  color: var(--ink-2);
-  background: var(--glass);
-  border: 1px solid var(--glass-line);
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-.coll:hover { background: var(--glass-strong); color: var(--ink); }
-.coll[data-active="true"] {
-  background: linear-gradient(100deg, rgba(124, 58, 237, 0.34), rgba(225, 29, 72, 0.18));
-  border-color: rgba(167, 139, 250, 0.42);
-  color: var(--ink);
-}
-
-.loading-more {
-  padding: 18px 0 6px;
-  text-align: center;
-  font-size: 12.5px;
-  color: var(--ink-3);
-}
-
-.skeleton {
-  height: 96px;
-  border-radius: var(--radius);
-  background: linear-gradient(
-    100deg,
-    rgba(255,255,255,0.04) 30%,
-    rgba(255,255,255,0.09) 50%,
-    rgba(255,255,255,0.04) 70%
-  );
-  background-size: 220% 100%;
-  animation: shimmer 1.4s infinite linear;
-}
-@keyframes shimmer {
-  from { background-position: 180% 0; }
-  to   { background-position: -40% 0; }
-}
-
-/* ── player ────────────────────────────────────────────────────────── */
-.player {
-  display: flex; align-items: center; gap: 16px;
-  padding: 0 20px;
-  border-top: 1px solid var(--glass-line);
-  background: rgba(11, 10, 20, 0.62);
-  backdrop-filter: blur(26px) saturate(150%);
-  -webkit-backdrop-filter: blur(26px) saturate(150%);
-}
-
-.now { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
-.now-name { font-weight: 600; font-size: 14px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.now-state { font-size: 11.5px; color: var(--ink-3); }
-.now-state[data-error="true"] { color: #fb7185; }
-
-.play-btn {
-  width: 46px; height: 46px; flex: none;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  background: linear-gradient(140deg, var(--glow-violet), var(--glow-rose));
-  box-shadow: 0 6px 22px rgba(124, 58, 237, 0.45);
-  color: #fff;
-  transition: transform 0.14s, opacity 0.14s;
-}
-.play-btn:hover { transform: scale(1.05); }
-.play-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
-
-.player-right { display: flex; align-items: center; gap: 13px; flex: none; }
-
-.vol { display: flex; align-items: center; gap: 8px; }
-.vol input {
-  width: 92px;
-  accent-color: var(--accent);
-  background: transparent;
-}
-@media (max-width: 720px) { .vol { display: none; } }
-
-.chip {
-  display: flex; align-items: center; gap: 7px;
-  height: 34px; padding: 0 12px;
-  border-radius: 99px;
-  background: var(--glass);
-  border: 1px solid var(--glass-line);
-  color: var(--ink-3);
-  font-size: 12.5px;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
-}
-.chip:hover { color: var(--ink); background: var(--glass-strong); }
-.chip[data-on="true"] {
-  color: var(--accent);
-  border-color: rgba(167, 139, 250, 0.4);
-  background: rgba(124, 58, 237, 0.16);
-}
-
-/* ── mic ───────────────────────────────────────────────────────────── */
-.mic {
-  width: 44px; height: 44px; flex: none;
-  border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--glass);
-  border: 1px solid var(--glass-line);
-  color: var(--ink-2);
-  transition: all 0.18s;
-}
-.mic:hover { background: var(--glass-strong); color: var(--ink); }
-.mic[data-listening="true"] {
-  background: linear-gradient(140deg, var(--glow-rose), var(--glow-violet));
-  border-color: transparent;
-  color: #fff;
-  animation: pulse 1.4s infinite;
-}
-.mic:disabled { opacity: 0.35; cursor: not-allowed; }
-
-@keyframes pulse {
-  0%   { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.5); }
-  70%  { box-shadow: 0 0 0 14px rgba(225, 29, 72, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
-}
-
-.mic-status {
-  position: absolute;
-  bottom: calc(100% + 10px); right: 0;
-  white-space: nowrap;
-  padding: 7px 12px;
-  border-radius: 99px;
-  font-size: 12px;
-  background: rgba(20, 16, 38, 0.92);
-  border: 1px solid var(--glass-line);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-}
-
-/* ──────────────────────────────────────────────────────────────────────
-   Phones.
-
-   The desktop card is a tile — logo above, tags below, generous padding.
-   At 375px that gives about five stations on screen, which is no way to
-   browse sixty. On a phone the card becomes a row: logo, name, meta, and
-   the heart always visible because there is no hover to reveal it.
-   ────────────────────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
-  :root {
-    --header-h: 58px;
-    --player-h: 72px;
-  }
-
-  /* ── header ── */
-  .header { gap: 9px; padding: 0 11px; }
-  .brand-mark { width: 32px; height: 32px; border-radius: 9px; }
-  .search { height: 36px; padding: 0 11px; }
-  .search input { font-size: 15px; }   /* 16px or more stops iOS zooming on focus */
-  .header-right { gap: 6px; }
-
-  /* The language name is the first thing to go — the flag and chevron are
-     enough to show it is a language control. */
-  .lang-trigger { padding: 0 9px; height: 36px; }
-  .lang-trigger span:not(.chev):nth-of-type(2) { display: none; }
-  .lang-menu { min-width: 190px; }
-
-  .mic { width: 36px; height: 36px; }
-  .mic svg { width: 16px; height: 16px; }
-
-  /* ── tabs ── */
-  .sidebar { padding: 8px 10px; gap: 6px; }
-  .tab { padding: 7px 12px; font-size: 13.5px; border-radius: 99px; }
-  .tab svg { width: 15px; height: 15px; }
-
-  /* ── list ── */
-  .main { padding: 14px 12px 18px; }
-  .collections { gap: 6px; padding-bottom: 9px; }
-  .coll { padding: 5px 11px; font-size: 12px; }
-  .coll-group { padding-left: 7px; margin-left: 2px; }
-  /* The group headings are the first thing to go on a phone — the chips read
-     clearly enough on their own and the labels cost scroll distance. */
-  .coll-label { display: none; }
-  .main-head { margin-bottom: 11px; gap: 8px; flex-wrap: wrap; }
-  .main-title { font-size: 17px; }
-  .main-sub { font-size: 12px; }
-
-  /* minmax(0, 1fr) again, and for the same reason: .card-name is nowrap, so
-     the card's min-content width is the full untruncated station name. A bare
-     1fr track would size itself to that and push the list off screen. This is
-     the third place the rule bites — any 1fr track containing nowrap text
-     needs it. */
-  .grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-
-  .card { padding: 10px 11px; border-radius: 13px; }
-  .card-top { margin-bottom: 0; gap: 11px; padding-right: 34px; }
-  .logo, .logo-fallback { width: 38px; height: 38px; border-radius: 9px; }
-  .card-name { font-size: 14.5px; }
-  .card-where { font-size: 11.5px; }
-
-  /* Tags are the least useful thing on a narrow row and cost a whole line
-     each. The genre is usually in the station's name anyway. */
-  .tags { display: none; }
-
-  /* No hover on a touch screen, so the heart has to be there already. */
-  .heart { opacity: 1; top: 50%; transform: translateY(-50%); right: 8px; }
-
-  .skeleton { height: 60px; border-radius: 13px; }
-
-  /* ── player ── */
-  .player { gap: 11px; padding: 0 12px; }
-  .play-btn { width: 42px; height: 42px; }
-  .now-name { font-size: 13.5px; }
-  .now-state { font-size: 11px; }
-
-  /* The DJ toggle keeps its icon and loses its label — "DJ on" next to a
-     microphone icon is saying the same thing twice. */
-  .chip { padding: 0 10px; height: 32px; font-size: 0; gap: 0; }
-  .chip svg { width: 15px; height: 15px; }
-
-  .empty { padding: 48px 16px; }
-}
-
-/* On any phone, the brand mark goes and the search box gets the room.
-   430px covers everything up to an iPhone Pro Max — an iPhone 13 is 390, and
-   at that width the logo was costing the search box a third of its space. */
-@media (max-width: 430px) {
-  .brand { display: none; }
-  .player { gap: 9px; }
+  border-radius: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.01ms !important;
+    animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── Shell ─────────────────────────────────────────────────────────────── */
+
+.shell {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.browse {
+  flex: 999 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 0;
+  gap: 14px;
+  background-color: #35221A;
+  background-image:
+    repeating-linear-gradient(92deg,
+      rgba(0, 0, 0, 0.20) 0 1px,
+      rgba(255, 255, 255, 0.025) 1px 3px,
+      transparent 3px 10px),
+    linear-gradient(170deg, #3E281C 0%, #2B1B13 100%);
+}
+
+/* ── Cabinet ───────────────────────────────────────────────────────────── */
+
+.cabinet {
+  flex: 0 1 440px;
+  min-width: 0;
+  padding: 20px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px var(--shadow);
+  /* Above .browse so the cabinet's shadow falls onto the list. */
+  position: relative;
+  z-index: 2;
+
+  background-color: var(--walnut);
+  background-image:
+    repeating-linear-gradient(94deg,
+      rgba(0, 0, 0, 0.16) 0 1px,
+      rgba(255, 255, 255, 0.035) 1px 3px,
+      transparent 3px 9px),
+    repeating-linear-gradient(90deg,
+      rgba(0, 0, 0, 0.10) 0 7px,
+      transparent 7px 26px),
+    linear-gradient(160deg, #5A3B27 0%, #442C1E 45%, #573924 100%);
+}
+
+.cab-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plate {
+  background: linear-gradient(170deg, #D9BD72, #A6853A 55%, var(--brass-lo));
+  border-radius: 3px;
+  padding: 5px 13px;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #3B2C10;
+  white-space: nowrap;
+}
+
+.onair {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--on-wood-2);
+}
+
+.onair-lamp {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6B4A2A;
+  flex: 0 0 auto;
+}
+
+.onair[data-live="true"] { color: #F3C98E; }
+
+.onair[data-live="true"] .onair-lamp {
+  background: #FF8A2B;
+  box-shadow: 0 0 8px 2px rgba(255, 138, 43, 0.75);
+}
+
+/* ── Dial ──────────────────────────────────────────────────────────────── */
+
+.dial {
+  background: linear-gradient(176deg, var(--cream) 0%, var(--cream-2) 52%, #D8C398 100%);
+  box-shadow:
+    inset 0 2px 7px rgba(80, 55, 20, 0.34),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+  border: 2px solid #32200F;
+  border-radius: 8px;
+  padding: 13px 15px 10px;
+}
+
+.dial-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dial-name {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 21px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.dial-freq {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.dial-where {
+  margin: 1px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dial-state {
+  margin: 7px 0 0;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.dial-state[data-error="true"] { color: #A33A12; }
+
+.scale {
+  position: relative;
+  height: 30px;
+  margin-top: 8px;
+}
+
+.scale-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 13px;
+  height: 1px;
+  background: #A68C55;
+}
+
+.scale-ticks {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.scale-ticks span {
+  width: 1px;
+  height: 7px;
+  background: #A68C55;
+}
+
+.scale-ticks span[data-major="true"] {
+  height: 13px;
+  background: #8A703C;
+}
+
+.needle {
+  position: absolute;
+  top: -2px;
+  width: 2.5px;
+  height: 21px;
+  margin-left: -1.25px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--amber-hi), #D9541A);
+  box-shadow: 0 0 7px 1px rgba(255, 150, 60, 0.8);
+  opacity: 0;
+  /* The sweep is the announcement — it replaced the spoken station name, so
+     it is slow enough to read as movement rather than as a jump. */
+  transition: left 620ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 240ms ease;
+}
+
+.needle[data-on="true"] { opacity: 1; }
+
+.scale-nums {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.07em;
+  color: #8A703C;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Grille ────────────────────────────────────────────────────────────── */
+
+.grille {
+  min-height: 64px;
+  border-radius: 5px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  background-color: #1A120C;
+  background-image: radial-gradient(circle at center,
+    #0A0705 1.15px,
+    rgba(120, 90, 60, 0.09) 1.3px,
+    transparent 1.6px);
+  background-size: 7px 7px;
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  overflow: hidden;
+}
+
+/* ── Now playing, lit across the grille ────────────────────────────────── */
+
+.track {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.track-label {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8A6A42;
+}
+
+/**
+ * Amber on near-black, the way a valve display reads.
+ *
+ * The title comes from the station and can be any length, so it ellipses
+ * rather than wrapping — a two-line song title would push the grille taller
+ * every time the song changed, and the cabinet would jump.
+ */
+.track-name {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: #FFB45C;
+  text-shadow: 0 0 10px rgba(255, 150, 60, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.knob-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.knob {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid #4A3A12;
+  background: radial-gradient(circle at 36% 30%,
+    #E6CE8C 0%, var(--brass) 34%, #8E6E2A 72%, #5E4718 100%);
+  box-shadow:
+    inset 0 -2px 5px rgba(0, 0, 0, 0.45),
+    0 2px 5px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.knob-mark {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  width: 2px;
+  height: 13px;
+  margin-left: -1px;
+  background: #4A3A12;
+  border-radius: 1px;
+  transform-origin: 50% 19px;
+  transition: transform 120ms ease;
+}
+
+/**
+ * The real control, laid transparently over the knob.
+ *
+ * A knob drawn as a div would not be draggable, focusable or announced. This
+ * keeps a genuine range input — screen readers call it a slider and report the
+ * percentage — while the brass underneath provides the look.
+ */
+.knob-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  opacity: 0;
+  cursor: grab;
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+}
+
+.knob-input:active { cursor: grabbing; }
+
+.knob-label {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--on-wood-2);
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.tbtn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  background: linear-gradient(176deg, #5E4330, #3C2819);
+  color: #DCC4A0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: transform 90ms ease, filter 160ms ease;
+}
+
+.tbtn:hover:not(:disabled) { filter: brightness(1.15); }
+.tbtn:active:not(:disabled) { transform: scale(0.94); }
+
+.tbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tbtn-main {
+  width: 60px;
+  height: 60px;
+  border: 2px solid #5A4718;
+  background: linear-gradient(170deg, #D9BD72, #A6853A 55%, var(--brass-lo));
+  color: #3B2C10;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.search {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px;
+  min-height: 42px;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--hairline);
+  color: var(--on-wood-2);
+}
+
+.search input {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--on-wood);
+  outline: none;
+}
+
+.search input::placeholder { color: var(--on-wood-2); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* ── Tabs ──────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.26);
+  color: #C6AE8C;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.tab:hover { background: rgba(0, 0, 0, 0.38); }
+
+.tab[data-active="true"] {
+  background: linear-gradient(174deg, #F0E2C0, #DCC79B);
+  color: #3A2A14;
+}
+
+.count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: var(--font-jost), sans-serif;
+  letter-spacing: 0;
+}
+
+.tab[data-active="true"] .count { background: rgba(58, 42, 20, 0.16); }
+
+/* ── Collections ───────────────────────────────────────────────────────── */
+
+.collections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.coll {
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(233, 207, 154, 0.34);
+  background: rgba(238, 222, 186, 0.12);
+  color: var(--on-wood);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.coll:hover { background: rgba(238, 222, 186, 0.2); }
+
+.coll[data-active="true"] {
+  background: linear-gradient(174deg, #EFDFBB, #D9C293);
+  border-color: #C8AE78;
+  color: #3A2A14;
+  font-weight: 500;
+}
+
+.coll-more {
+  border-style: dashed;
+  background: none;
+  color: #E8C98E;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+/* ── View-all sheet ────────────────────────────────────────────────────── */
+
+.sheet-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(14, 9, 5, 0.66);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fade 180ms ease;
+}
+
+@keyframes fade { from { opacity: 0; } }
+
+.sheet {
+  width: 100%;
+  max-width: 640px;
+  max-height: 86dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: #3E281C;
+  background-image: linear-gradient(170deg, #4A3122 0%, #2F1E15 100%);
+  border: 1px solid rgba(233, 207, 154, 0.22);
+  border-bottom: 0;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.55);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: rise 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+@keyframes rise { from { transform: translateY(16px); opacity: 0; } }
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 10px;
+}
+
+.sheet-title {
+  margin: 0;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--on-wood);
+}
+
+.sheet-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--hairline);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--on-wood);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.sheet-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 18px 12px;
+  padding: 0 12px;
+  min-height: 40px;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--hairline);
+  color: var(--on-wood-2);
+}
+
+.sheet-search input {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--on-wood);
+  outline: none;
+}
+
+.sheet-search input::placeholder { color: var(--on-wood-2); }
+
+.sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 18px 20px;
+}
+
+.sheet-group + .sheet-group { margin-top: 18px; }
+
+.sheet-group-title {
+  margin: 0 0 8px;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--on-wood-2);
+}
+
+.sheet-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sheet-empty {
+  margin: 12px 0;
+  color: var(--on-wood-2);
+  font-size: 14px;
+}
+
+/* ── List ──────────────────────────────────────────────────────────────── */
+
+.main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.main-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-bottom: 9px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.main-title {
+  margin: 0;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--on-wood);
+  min-width: 0;
+}
+
+.main-sub {
+  font-size: 12.5px;
+  color: var(--on-wood-2);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 10px;
+}
+
+/* ── Station card ──────────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  background: linear-gradient(174deg, #F4EAD2, #E7D9B8);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.34);
+  padding: 11px 13px;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-left: 4px solid transparent;
+  transition: transform 120ms ease, box-shadow 160ms ease;
+}
+
+.card:hover { transform: translateY(-1px); box-shadow: 0 5px 11px rgba(0, 0, 0, 0.4); }
+
+.card[data-playing="true"] { border-left-color: #D9541A; }
+
+.card-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Stretches the name button over the whole card so a tap anywhere tunes in,
+   while the bookmark above it keeps its own hit area. */
+.card-main::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+}
+
+.card-name {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.card-where {
+  font-size: 11.5px;
+  color: #7A6334;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.card-freq {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: #A08953;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-live {
+  position: absolute;
+  left: 13px;
+  bottom: -7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #B4441A;
+  color: #FFF3E4;
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 9px; }
+
+.bars i {
+  width: 2px;
+  background: #FFF3E4;
+  border-radius: 1px;
+  height: 4px;
+}
+
+.card-live[data-live="true"] .bars i {
+  animation: bounce 900ms ease-in-out infinite;
+}
+
+.bars i:nth-child(2) { animation-delay: 150ms; }
+.bars i:nth-child(3) { animation-delay: 300ms; }
+.bars i:nth-child(4) { animation-delay: 450ms; }
+
+@keyframes bounce {
+  0%, 100% { height: 3px; }
+  50%      { height: 9px; }
+}
+
+.fav {
+  position: relative;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: none;
+  color: #9A7F4A;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.fav:hover { background: rgba(120, 90, 40, 0.12); }
+.fav[data-on="true"] { color: #B4551A; }
+
+/* ── States ────────────────────────────────────────────────────────────── */
+
+.skeleton {
+  height: 62px;
+  border-radius: 8px;
+  background: linear-gradient(90deg,
+    rgba(238, 222, 186, 0.08) 25%,
+    rgba(238, 222, 186, 0.15) 50%,
+    rgba(238, 222, 186, 0.08) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+.empty {
+  text-align: center;
+  padding: 44px 20px;
+  color: var(--on-wood-2);
+}
+
+.empty-title {
+  font-family: var(--font-oswald), "Oswald Fallback", sans-serif;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: var(--on-wood);
+  margin-bottom: 5px;
+}
+
+.empty-hint { font-size: 13.5px; }
+
+.loading-more {
+  text-align: center;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--on-wood-2);
+}
+
+/* ── Mic + language ────────────────────────────────────────────────────── */
+
+.mic, .lang-trigger {
+  min-width: 42px;
+  min-height: 42px;
+  padding: 0 11px;
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--on-wood);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.mic:hover, .lang-trigger:hover { background: rgba(0, 0, 0, 0.44); }
+
+.mic[data-listening="true"] {
+  background: #B4441A;
+  border-color: #D9541A;
+  color: #FFF3E4;
+}
+
+.mic-status {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 9px 15px;
+  border-radius: 999px;
+  background: rgba(20, 13, 8, 0.93);
+  border: 1px solid var(--hairline);
+  color: var(--on-wood);
+  font-size: 13px;
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lang { position: relative; flex: 0 0 auto; }
+
+.chev { opacity: 0.6; flex: 0 0 auto; }
+
+.lang-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  min-width: 182px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: 12px;
+  background-color: #3E281C;
+  background-image: linear-gradient(170deg, #4A3122 0%, #2F1E15 100%);
+  border: 1px solid rgba(233, 207, 154, 0.22);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+.lang-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--on-wood);
+  cursor: pointer;
+  text-align: left;
+}
+
+.lang-item:hover { background: rgba(238, 222, 186, 0.12); }
+
+.lang-item[data-active="true"] {
+  background: linear-gradient(174deg, #EFDFBB, #D9C293);
+  color: #3A2A14;
+}
+
+.native { font-weight: 500; }
+.latin { font-size: 12px; opacity: 0.7; }
+
+/* ── Phone ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 859px) {
+  /**
+   * nowrap matters as much as the direction.
+   *
+   * A column flex container that is allowed to wrap sizes each flex line to
+   * its widest item, and the container does not clamp it — so one long station
+   * name made the cabinet and the list 2180px wide inside an 822px window.
+   * Wrapping is only wanted for the two-column desk layout.
+   */
+  .shell {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+
+  .cabinet, .browse {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .cabinet {
+    flex: 0 0 auto;
+    padding: 14px 16px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
+    gap: 12px;
+  }
+
+  .grille { height: 48px; }
+
+  /* The list scrolls with the page on a phone rather than inside its own box:
+     a nested scroller is where iOS rubber-banding gets confusing, and there is
+     no second column that has to stay in view. */
+  .browse {
+    flex: 1 1 auto;
+    padding: 14px 16px 0;
+  }
+
+  .main { overflow: visible; }
+
+  .dial-name { font-size: 19px; }
+
+  /* minmax(0, …) not a bare 1fr: a bare track takes its minimum from the
+     content's min-content width, and the station names are nowrap, so the
+     column stretched past the screen instead of ellipsing. */
+  .grid { grid-template-columns: minmax(0, 1fr); }
+
+  .sheet { max-height: 80dvh; }
+}
+
+/* ── Desk ──────────────────────────────────────────────────────────────── */
+
+@media (min-width: 860px) {
+  .cabinet {
+    border-bottom: 0;
+    border-right: 2px solid rgba(0, 0, 0, 0.5);
+    box-shadow: 6px 0 20px var(--shadow);
+    padding: 28px 26px;
+    gap: 20px;
+    /* The set stays put while the list scrolls beside it. */
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100dvh;
+  }
+
+  .grille { height: 120px; }
+
+  .dial { padding: 18px 20px 14px; }
+  .dial-name { font-size: 26px; }
+
+  .browse {
+    padding: 24px 28px 0;
+    height: 100dvh;
+  }
+
+  .tabs { max-width: 440px; }
+
+  .sheet-wrap { align-items: center; padding: 24px; }
+
+  .sheet {
+    border-radius: 16px;
+    border-bottom: 1px solid rgba(233, 207, 154, 0.22);
+    max-height: 76dvh;
   }
 }

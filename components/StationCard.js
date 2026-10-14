@@ -1,91 +1,71 @@
 "use client";
 
-import { useState } from "react";
 import { useLanguage } from "@/context/LanguageContext";
-import { usePlayer } from "@/context/PlayerContext";
+import { usePlayer, dialFrequency } from "@/context/PlayerContext";
 
 /**
- * Station logos come from thousands of unrelated hosts and a good number are
- * dead links. A broken image icon on a third of the grid looks like the app
- * is broken, so a failed load falls back to the station's initials.
+ * One station, drawn as a printed label.
+ *
+ * The whole card tunes in, but it is a real `<button>` that does it rather
+ * than a div with a click handler — the name stretches over the card with a
+ * pseudo-element, so a pointer can hit anywhere while a keyboard still finds
+ * one focusable control with a sensible label. The bookmark sits above it and
+ * stops the click from reaching through.
+ *
+ * Station logos are gone. They came from thousands of unrelated hosts, a good
+ * number were dead links, and the cream label reads better without a grid of
+ * mismatched squares on it.
  */
 export default function StationCard({ station }) {
   const { t } = useLanguage();
-  const { play, station: current, isFavorite, toggleFavorite } = usePlayer();
-  const [logoBroken, setLogoBroken] = useState(false);
+  const { play, station: current, status, isFavorite, toggleFavorite } = usePlayer();
 
   const playing = current?.id === station.id;
+  const live = playing && status === "playing";
   const faved = isFavorite(station.id);
 
-  const initials = station.name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+  const where =
+    [station.country || station.language, station.bitrate ? `${station.bitrate} kbps` : null]
+      .filter(Boolean)
+      .join(" · ") || "—";
 
   return (
-    <div
-      className="card"
-      data-playing={playing}
-      role="button"
-      tabIndex={0}
-      onClick={() => play(station)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          play(station);
-        }
-      }}
-      aria-label={`${t("play")} ${station.name}`}
-    >
+    <div className="card" data-playing={playing}>
       <button
-        className="heart"
+        type="button"
+        className="card-main"
+        onClick={() => play(station)}
+        aria-label={`${t("play")} ${station.name}`}
+      >
+        <span className="card-name" title={station.name}>{station.name}</span>
+        <span className="card-where">{where}</span>
+      </button>
+
+      <span className="card-freq" aria-hidden="true">{dialFrequency(station.id)}</span>
+
+      {playing && (
+        <span className="card-live" data-live={live}>
+          <span className="bars" aria-hidden="true">
+            <i /><i /><i /><i />
+          </span>
+          {live ? t("nowPlaying") : t("buffering")}
+        </span>
+      )}
+
+      <button
+        type="button"
+        className="fav"
         data-on={faved}
-        onClick={(e) => {
-          e.stopPropagation();          // the card itself plays; the heart must not
-          toggleFavorite(station);
-        }}
+        onClick={() => toggleFavorite(station)}
         aria-label={faved ? t("removeFavorite") : t("addFavorite")}
         title={faved ? t("removeFavorite") : t("addFavorite")}
       >
         <svg width="15" height="15" viewBox="0 0 24 24"
              fill={faved ? "currentColor" : "none"} stroke="currentColor"
              strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 20s-7-4.4-7-9.2A3.9 3.9 0 0 1 12 8a3.9 3.9 0 0 1 7 2.8c0 4.8-7 9.2-7 9.2z" />
+          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
         </svg>
       </button>
-
-      <div className="card-top">
-        {station.favicon && !logoBroken ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            className="logo"
-            src={station.favicon}
-            alt=""
-            loading="lazy"
-            onError={() => setLogoBroken(true)}
-          />
-        ) : (
-          <div className="logo-fallback" aria-hidden="true">{initials}</div>
-        )}
-
-        <div style={{ minWidth: 0 }}>
-          <div className="card-name" title={station.name}>{station.name}</div>
-          <div className="card-where">
-            {station.country || station.language || "—"}
-            {station.bitrate ? ` · ${station.bitrate}kbps` : ""}
-          </div>
-        </div>
-      </div>
-
-      {station.tags.length > 0 && (
-        <div className="tags">
-          {station.tags.map((tag) => (
-            <span key={tag} className="tag">{tag}</span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

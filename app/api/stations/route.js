@@ -20,7 +20,7 @@ const MIRRORS = [
   "https://at1.api.radio-browser.info",
 ];
 
-const UA = "AI-Radio/0.1 (https://github.com/swais)";
+const UA = "SV-Radio/0.1 (https://github.com/swais)";
 
 async function fetchFromAnyMirror(path, revalidate) {
   let lastError;
@@ -62,7 +62,9 @@ async function fetchCollection(collection, revalidate) {
     collection.queries.map(async (q) => {
       const search = new URLSearchParams({
         ...(q.params ?? {}),
-        limit: "120",
+        // Higher than a plain page: a region collection is a whole country's
+        // listing, and half of what comes back is dropped as HTTP-only.
+        limit: "250",
         hidebroken: "true",
         order: "clickcount",
         reverse: "true",
@@ -97,10 +99,18 @@ export async function GET(request) {
     try {
       const raw = await fetchCollection(collection, 3600);
       const seen = new Set();
-      const stations = raw
+      let stations = raw
         .map(toStation)
         .filter((s) => s.url && s.url.startsWith("https://"))
         .filter((s) => !seen.has(s.id) && seen.add(s.id));
+
+      // A genre tag is global, so "Pop" on the World tab would otherwise
+      // include Indian pop stations that the India tab already covers. The
+      // tab the listener is on decides, not the collection.
+      if (scope === "international") {
+        stations = stations.filter((s) => s.countryCode !== "IN");
+      }
+
       return Response.json({ stations, offset: 0, hasMore: false });
     } catch (err) {
       return Response.json(
